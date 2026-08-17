@@ -34,9 +34,12 @@ x-app-service: &app-service
   build:
     context: .
     dockerfile: docker/php/Dockerfile
+    # The container user takes the host uid/gid so that files it writes into
+    # the bind mount stay editable outside. Override when yours is not 1000:
+    # USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose up -d --build
     args:
-      USER_ID: "1000"
-      GROUP_ID: "1000"
+      USER_ID: ${USER_ID:-1000}
+      GROUP_ID: ${GROUP_ID:-1000}
   volumes:
     - .:/var/www/html
   depends_on:

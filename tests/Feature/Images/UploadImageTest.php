@@ -173,6 +173,24 @@ class UploadImageTest extends TestCase
             ->assertJsonStructure(['message']);
     }
 
+    public function test_an_upload_broken_by_the_transport_is_not_reported_as_validation(): void
+    {
+        $user = User::factory()->create();
+
+        $interrupted = new UploadedFile(
+            (string) $this->image('half.png')->getRealPath(),
+            'half.png',
+            'image/png',
+            UPLOAD_ERR_PARTIAL,
+            true,
+        );
+
+        $this->actingAs($user, 'sanctum')
+            ->post('/api/v1/images', ['image' => $interrupted], ['Accept' => 'application/json'])
+            ->assertStatus(400)
+            ->assertJsonStructure(['message']);
+    }
+
     public function test_it_requires_authentication(): void
     {
         $this->post('/api/v1/images', ['image' => $this->image()], ['Accept' => 'application/json'])

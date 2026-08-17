@@ -43,7 +43,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
 
-        RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(120)
+        // Uploads cost disk, CPU and object store requests, so they get a
+        // tighter budget than reads — otherwise the group-wide 'api' limiter
+        // would always trip first and this one would never do anything.
+        RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(30)
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
 
         RateLimiter::for('auth', fn (Request $request) => [

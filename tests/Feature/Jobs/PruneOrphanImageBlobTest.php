@@ -67,6 +67,26 @@ class PruneOrphanImageBlobTest extends TestCase
         Storage::disk($this->imageDisk())->assertExists($blob->path);
     }
 
+    public function test_a_deleted_user_does_not_strand_their_blob(): void
+    {
+        $user = User::factory()->create();
+        $this->uploadAs($user, $this->pngUpload());
+
+        $blob = ImageBlob::query()->sole();
+
+        // The cascade removes ownership rows without going through Eloquent,
+        // so the counter is left behind — cleanup must not depend on it.
+        $user->delete();
+
+        $this->assertSame(1, $blob->refresh()->references);
+        $this->assertTrue(ImageBlob::query()->orphaned()->whereKey($blob->id)->exists());
+
+        $this->runJob(new PruneOrphanImageBlob($blob->id));
+
+        $this->assertDatabaseCount('image_blobs', 0);
+        Storage::disk($this->imageDisk())->assertMissing($blob->path);
+    }
+
     public function test_the_prune_command_queues_orphaned_blobs_only(): void
     {
         $orphan = ImageBlob::factory()->create(['references' => 0, 'updated_at' => now()->subDay()]);

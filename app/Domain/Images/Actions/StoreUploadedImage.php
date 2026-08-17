@@ -28,8 +28,8 @@ class StoreUploadedImage
 
         // Written before the transaction so an object store round trip never
         // happens with a database transaction open. Nothing points at the file
-        // yet; if the request dies here, the path is reused by the next upload
-        // of the same bytes and `images:prune` sweeps what is left.
+        // yet: if the request dies here, the next upload of the same bytes
+        // reuses the path, and `images:sweep` collects what is left.
         $storedPath = ImageBlob::query()->where('hash', $hash)->exists()
             ? null
             : $this->putOriginal($file, $hash, $probe);

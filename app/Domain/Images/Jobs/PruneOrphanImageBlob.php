@@ -33,8 +33,8 @@ class PruneOrphanImageBlob implements ShouldQueue
                 return null;
             }
 
-            // The counter is the fast check, the rows are the truth.
-            if ($blob->references > 0 || $blob->images()->exists()) {
+            // Ownership rows decide, not the counter — see ImageBlob::scopeOrphaned.
+            if ($blob->images()->exists()) {
                 return null;
             }
 

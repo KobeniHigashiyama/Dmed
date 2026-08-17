@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Images\Console\PruneImageBlobs;
+use App\Domain\Images\Console\SweepOrphanFiles;
 use App\Http\Middleware\RejectFailedUploads;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,7 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         },
     )
-    ->withCommands([PruneImageBlobs::class])
+    ->withCommands([PruneImageBlobs::class, SweepOrphanFiles::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->throttleApi('api');
 

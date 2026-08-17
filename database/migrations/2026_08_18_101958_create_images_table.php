@@ -30,6 +30,7 @@ return new class extends Migration
             $table->unique(['user_id', 'image_blob_id']);
 
             $table->index(['user_id', 'id']);
+            $table->index('image_blob_id');
         });
     }
 

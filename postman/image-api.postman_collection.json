@@ -1,0 +1,621 @@
+{
+    "info": {
+        "name": "Image API",
+        "description": "A private image upload API.\n\nHow to use it: run Register (or Login) — the token is injected into every other request automatically. Then run Upload image: pick a file for the `image` field in the request body; after the upload the identifier is stored in the `image_id` variable and the remaining requests operate on it.\n\nThe base address comes from the `base_url` variable (the local docker stack by default).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8080/api/v1"
+        },
+        {
+            "key": "token",
+            "value": ""
+        },
+        {
+            "key": "image_id",
+            "value": ""
+        },
+        {
+            "key": "email",
+            "value": ""
+        }
+    ],
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "// A unique address per run, so the collection stays repeatable.",
+                                    "pm.collectionVariables.set('email', 'user-' + Date.now() + '@example.com');"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                                    "pm.test('a token came back', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                                    "pm.collectionVariables.set('token', pm.response.json().token);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "name",
+                                    "value": "Test User"
+                                },
+                                {
+                                    "key": "email",
+                                    "value": "{{email}}"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "secret-password"
+                                },
+                                {
+                                    "key": "password_confirmation",
+                                    "value": "secret-password"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "description": "Registration. The token from the response is stored in the `token` variable and injected into every other request."
+                    }
+                },
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                                    "pm.collectionVariables.set('token', pm.response.json().token);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "email",
+                                    "value": "{{email}}"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "secret-password"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "description": "Password login. Wrong credentials return a 422 carrying the same error as an address that does not exist."
+                    }
+                },
+                {
+                    "name": "Me",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/auth/me",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "The current user behind the token."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Images",
+            "item": [
+                {
+                    "name": "Upload image",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('201 on the first upload, 200 if the file was already there', () =>",
+                                    "    pm.expect([200, 201]).to.include(pm.response.code));",
+                                    "",
+                                    "const image = pm.response.json().data;",
+                                    "pm.collectionVariables.set('image_id', image.id);",
+                                    "",
+                                    "pm.test('the file was accepted and queued for compression', () =>",
+                                    "    pm.expect(['pending', 'ready']).to.include(image.status));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "image",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "PNG or JPEG up to 5 MB. Pick a file from disk."
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/images",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images"
+                            ]
+                        },
+                        "description": "Upload. The response comes back immediately and the WebP compression runs in the background: the status is `pending` at first and `ready` a second or two later.\n\nRe-uploading the same file creates nothing and returns 200 with the existing record."
+                    }
+                },
+                {
+                    "name": "List images",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                                    "pm.test('the listing holds own images only', () =>",
+                                    "    pm.expect(pm.response.json().data).to.be.an('array'));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/images?per_page=25",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images"
+                            ],
+                            "query": [
+                                {
+                                    "key": "per_page",
+                                    "value": "25"
+                                },
+                                {
+                                    "key": "cursor",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": "The meta.next_cursor value from the previous response."
+                                }
+                            ]
+                        },
+                        "description": "Own images, paged by cursor. For the next page, put `meta.next_cursor` into the `cursor` parameter."
+                    }
+                },
+                {
+                    "name": "Show image",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                                    "const image = pm.response.json().data;",
+                                    "console.log('status: ' + image.status + ', type: ' + image.mime + ', size: ' + image.size);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/images/{{image_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images",
+                                "{{image_id}}"
+                            ]
+                        },
+                        "description": "Metadata. This is where you can see that after processing `mime` switches to `image/webp` and `size` drops noticeably."
+                    }
+                },
+                {
+                    "name": "Download image",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                                    "pm.test('an image is served', () =>",
+                                    "    pm.expect(pm.response.headers.get('Content-Type')).to.match(/^image\\//));",
+                                    "pm.test('the cache entry is marked private', () =>",
+                                    "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/images/{{image_id}}/content",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images",
+                                "{{image_id}}",
+                                "content"
+                            ]
+                        },
+                        "description": "The bytes themselves. Postman renders the image in the Preview tab."
+                    }
+                },
+                {
+                    "name": "Delete image",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/images/{{image_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images",
+                                "{{image_id}}"
+                            ]
+                        },
+                        "description": "Deletion. If somebody else uploaded the same file, the stored file stays with them."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Limit checks",
+            "item": [
+                {
+                    "name": "No token → 401",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/images",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Another user's image → 404",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('404 rather than 403 — otherwise the status code lets you probe other libraries', () =>",
+                                    "    pm.response.to.have.status(404));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/images/01hzzzzzzzzzzzzzzzzzzzzzzz",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images",
+                                "01hzzzzzzzzzzzzzzzzzzzzzzz"
+                            ]
+                        },
+                        "description": "An identifier belonging to somebody else and one that does not exist both return the same 404."
+                    }
+                },
+                {
+                    "name": "Not an image → 422",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                                    "pm.test('the error points at the image field', () =>",
+                                    "    pm.expect(pm.response.json().errors).to.have.property('image'));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "image",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Pick a PDF, a text file, or a PDF renamed to .png — the type is checked against the content, not the extension."
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/images",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "File larger than 5 MB → 422",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('422 or 413', () => pm.expect([413, 422]).to.include(pm.response.code));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "image",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "A PNG or JPEG heavier than 5 MB."
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/images",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "images"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Health check",
+            "request": {
+                "auth": {
+                    "type": "noauth"
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "http://localhost:8080/up",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8080",
+                    "path": [
+                        "up"
+                    ]
+                },
+                "description": "A check that the stack came up."
+            }
+        },
+        {
+            "name": "Logout (last in the run)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Accept",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/auth/logout",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "auth",
+                        "logout"
+                    ]
+                },
+                "description": "Revokes the current token only. It sits at the end so the collection can be run top to bottom in one go."
+            }
+        }
+    ]
+}

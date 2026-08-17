@@ -50,7 +50,10 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Tokens stop working after a week unless the client refreshes them; a
+    // leaked token is otherwise valid forever. Expired rows are dropped by
+    // the scheduled sanctum:prune-expired command.
+    'expiration' => env('SANCTUM_TOKEN_EXPIRATION', 60 * 24 * 7),
 
     /*
     |--------------------------------------------------------------------------

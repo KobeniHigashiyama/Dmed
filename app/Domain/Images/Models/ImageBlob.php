@@ -65,11 +65,16 @@ class ImageBlob extends Model
     }
 
     /**
+     * Ownership rows are the source of truth, not the counter: a user deleted
+     * with `cascade` takes their images with them without ever touching
+     * `references`, and a blob filtered by the counter alone would live on
+     * disk forever.
+     *
      * @param  Builder<ImageBlob>  $query
      */
     public function scopeOrphaned(Builder $query): void
     {
-        $query->where('references', '<=', 0);
+        $query->whereDoesntHave('images');
     }
 
     public function isPending(): bool
