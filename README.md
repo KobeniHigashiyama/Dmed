@@ -119,22 +119,3 @@ original_name                   references  how many records point at it
 UNIQUE (user_id, image_blob_id) status      pending | ready | failed
 INDEX  (user_id, id)
 ```
-
----
-
-## Out of scope
-
-- Deduplication is exact, by hash. Similar but not identical files (re-encoded,
-  or carrying different EXIF) stay separate blobs — catching those needs a
-  perceptual hash.
-- Re-uploading the same bytes under a different name returns the **first**
-  record, original name included, with a `200`. One user owns a given blob once,
-  which is what `UNIQUE (user_id, image_blob_id)` says; letting the name change
-  would mean dropping that constraint and counting references by rows.
-- `references` is a denormalised counter for cheap checks. The `images` rows are
-  the source of truth everywhere it matters: a user removed by a cascade never
-  touches the counter, so cleanup looks at the rows instead.
-- In production, serving the bytes should move to `X-Accel-Redirect` or signed
-  URLs; right now the application streams them itself by default.
-- Once `images` grows into the hundreds of millions of rows, partitioning by
-  date starts to make sense.
