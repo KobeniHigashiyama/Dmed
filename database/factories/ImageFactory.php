@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\Image;
-use App\Models\ImageBlob;
-use App\Models\User;
+use App\Domain\Images\Models\Image;
+use App\Domain\Images\Models\ImageBlob;
+use App\Domain\Users\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -14,9 +14,7 @@ class ImageFactory extends Factory
 {
     protected $model = Image::class;
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array{user_id: Factory<User>, image_blob_id: Factory<ImageBlob>, original_name: string} */
     public function definition(): array
     {
         return [
