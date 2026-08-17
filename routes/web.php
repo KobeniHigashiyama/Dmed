@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', fn () => response()->json([
+    'service' => config('app.name'),
+    'api' => url('/api/v1'),
+]));
