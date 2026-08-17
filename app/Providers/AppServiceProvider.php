@@ -46,7 +46,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(120)
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
 
-
         RateLimiter::for('auth', fn (Request $request) => [
             Limit::perMinute(10)->by((string) $request->ip()),
             Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email'))),

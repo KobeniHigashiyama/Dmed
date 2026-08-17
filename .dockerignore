@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+node_modules
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+database/*.sqlite
+.env
+.phpunit.result.cache

@@ -1,0 +1,150 @@
+name: dmed
+
+# The stack mirrors production: PostgreSQL for data, Redis for queues and
+# cache, MinIO as the S3-compatible object store, and a separate worker
+# process doing the image compression.
+x-app-environment: &app-environment
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_URL: http://localhost:8080
+
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: dmed
+  DB_USERNAME: dmed
+  DB_PASSWORD: secret
+
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+  IMAGES_DISK: s3
+  AWS_ACCESS_KEY_ID: minioadmin
+  AWS_SECRET_ACCESS_KEY: minioadmin
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_BUCKET: images
+  AWS_ENDPOINT: http://minio:9000
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+
+x-app-service: &app-service
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+    args:
+      USER_ID: "1000"
+      GROUP_ID: "1000"
+  volumes:
+    - .:/var/www/html
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    minio-init:
+      condition: service_completed_successfully
+
+services:
+  app:
+    <<: *app-service
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "true"
+
+  worker:
+    <<: *app-service
+    environment: *app-environment
+    command: ["php", "artisan", "queue:work", "--queue=images,default", "--tries=3", "--max-time=3600"]
+    depends_on:
+      app:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    <<: *app-service
+    environment: *app-environment
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: dmed
+      POSTGRES_USER: dmed
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Non-standard host port so the container never collides with a database
+    # already running on the machine.
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dmed -d dmed"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  # Creates the bucket once and exits; the app waits for it to succeed.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do
+          echo "waiting for minio..."
+          sleep 1
+        done
+        mc mb --ignore-existing local/images
+        echo "bucket ready"
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

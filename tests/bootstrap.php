@@ -23,5 +23,3 @@ foreach ($environment as $key => $value) {
     $_ENV[$key] = $_SERVER[$key] = $value;
     putenv("{$key}={$value}");
 }
-
-fwrite(STDERR, "BOOTSTRAP RAN db=".($_SERVER["DB_CONNECTION"] ?? "unset")."\n");
